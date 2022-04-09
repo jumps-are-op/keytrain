@@ -1,0 +1,100 @@
+#!/bin/bash
+
+# Made by jumps-are-op
+# This software is under GPLv3 (or later)
+# and comes with ABSOLUTE NO WARRANTY
+
+
+# words file should end with \n NOT \r\n because f@#k dos
+wordsFile="words"
+
+# set to 1 to enable colors
+colors=1
+
+# echo number of lines in $wordsfile
+length(){
+	wc -l "$wordsFile" |
+		cut -d' ' -f1 |
+		tr -d '\n'
+}
+
+exit_main(){
+	tput cnorm
+	exit
+}
+
+main(){
+	[ ! -f "$wordsFile" ] && echo "words file not found" && exit 1
+	[ "$(length)" == 0 ] && echo "empty words file" && exit 1
+
+	trap 'exit_main' INT EXIT
+	tput civis
+	correct=0
+	mistakes=0
+
+	# main loop
+	while true;do
+		# get a random word
+		wordNum="$(shuf -i "0-$(length)"|head -1|tr -d '\n')"
+		word="$(head "-$wordNum" "$wordsFile"|tail -1|tr -d '\n')"
+		wordOriginal="$word"
+		wordLen="${#word}"
+		input=""
+		wordCharNum=0
+
+		while true;do
+			# display UI
+			clear
+			echo    "+-$(printf "%${wordLen}s"|tr ' ' '-')-+"
+			echo -e "| $word |"
+			echo    "+-$(printf "%${wordLen}s"|tr ' ' '-')-+"
+			echo    ""
+			echo    "+-$(printf "%${wordLen}s"|tr ' ' '-')-+"
+			echo    "| $input$(printf "%$((wordLen-${#input}))s") |"
+			echo    "+-$(printf "%${wordLen}s"|tr ' ' '-')-+"
+			echo    "correct words: $correct"
+			echo    "mistakes:      $mistakes"
+			[ "$input" == "$wordOriginal" ] && break
+			
+			read -srn1 i
+			# escape handler
+			if [ "$i" == $'\E' ];then
+				# if ESC pressed the exit
+				read -t 0.05 -srn2 i
+				[ "$i" == "" ] && exit
+				# else ignore
+				continue
+			
+			# backspace
+			elif [ "$i" == $'\177' ];then
+				# discard backspace if the input is empty
+				[ "$input" == "" ] && continue
+				input="${input:0:${#input}-1}"
+				word="${word:0:wordCharNum-11}${word:wordCharNum-5:1}${word:wordCharNum:wordCharNum-1}"
+				((wordCharNum-=11))
+				continue
+			
+			else
+				[ "${#input}" -ge "$wordLen" ] && continue
+				input="$input$i"
+			fi
+			
+			# colors the current char green if its correct else color it red
+			if [ "$colors" == 1 ];then
+				if [ "$i" == "${word:wordCharNum:1}" ];then
+					# \e[42m is green
+					word="${word:0:wordCharNum}\e[42m${word:wordCharNum:1}\e[m${word:wordCharNum+1}"
+					((wordCharNum+=11))
+				else
+					# \e[41m is red
+					word="${word:0:wordCharNum}\e[41m${word:wordCharNum:1}\e[m${word:wordCharNum+1}"
+					((mistakes++))
+					((wordCharNum+=11))
+				fi
+			fi
+		done
+		((correct++))
+	done
+}
+
+main "$@"
